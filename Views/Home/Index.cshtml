@@ -1,0 +1,282 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Employee List</title>
+    <style>
+        .employee-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+            .employee-table th,
+            .employee-table td {
+                padding: 8px;
+                border: 1px solid #ccc;
+            }
+
+            .employee-table th {
+                background-color: #f2f2f2;
+            }
+    </style>
+</head>
+<body>
+    <h1>Employee List</h1>
+    <button onclick="createEmployee()">Create</button>
+    <table class="employee-table">
+        <thead>
+            <tr>
+                <th>Employee ID</th>
+                <th>Name</th>
+                <th>Date of Birth</th>
+                <th>Salary</th>
+                <th>Years of Experience</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="employee-table-body">
+            <!-- Employee rows will be dynamically added here -->
+        </tbody>
+    </table>
+
+    <!-- Modal for editing employee-->
+    <div id="editModal" class="modal fade" role="dialog">
+        <div class="modal-dialog">
+            <!-- Edit Modal content-->
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title">Employee Details</h4>
+                </div>
+                <div class="modal-body">
+                    <!-- Content will be dynamically added here -->
+                </div>
+                <div class="modal-footer">
+                    <button onclick="closeModal()" id="closeButton" type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                    <button onclick="submitModal()" id="submitButton" type="button" class="btn btn-default" data-dismiss="modal">Submit</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for adding employee-->
+    <div id="createModal" class="modal fade" role="dialog">
+        <div class="modal-dialog">
+            <!-- Add Modal content-->
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title">Create employee</h4>
+                </div>
+                <div class="modal-body">
+                    <!-- Content will be dynamically added here -->
+                </div>
+                <div class="modal-footer">
+                    <button onclick="closeModal()" id="closeButton" type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                    <button onclick="submitCreateModal()" id="submitButton" type="button" class="btn btn-default" data-dismiss="modal">Submit</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
+    <script>
+        // Get from employess after the page is ready
+        $(document).ready(function () {
+            getEmployees();
+        });
+
+        // Generate Modal to create employee
+        function createEmployee() {
+            var modalContent = '<form id="employeeForm">' +
+                '<label for="createNames">Names:</label>' +
+                '<input type="text" id="createNames" value="" required><br><br>' +
+                '<label for="createDob">Date of Birth:</label>' +
+                '<input type="date" id="createDob" value="" required min="1800-01-01"><br><br>' +
+                '<label for="createSalary">Salary:</label>' +
+                '<input type="number" id="createSalary" step="0.01" value="" required><br><br>' +
+                '<label for="createYearOfExp">Years of Experience:</label>' +
+                '<input type="number" id="createYearOfExp" value="" required><br><br>' +
+                '</form>';
+
+            // Display the modal
+            $("#createModal .modal-body").html(modalContent);
+            $("#createModal").modal("show");
+        }
+
+        // function after user clicks submit at Create Employee Modal
+        function submitCreateModal() {
+            var names = $("#createNames").val();
+            var dobString = $("#createDob").val();
+            var salary = parseFloat($("#createSalary").val());
+            var yearOfExp = parseInt($("#createYearOfExp").val());
+
+            var dobComponents = dobString.split('-');
+            var year = parseInt(dobComponents[0]);
+            var month = parseInt(dobComponents[1]) - 1;
+            var day = parseInt(dobComponents[2]);
+
+            var formattedDob = ('0' + month).slice(-2) + '/' + ('0' + day).slice(-2) + '/' + year;
+            var employeeData = {
+                Names: names,
+                DOB: new Date(formattedDob), // Use the formatted date string
+                Salary: salary,
+                YearOfExp: yearOfExp
+            };
+
+            $.ajax({
+                url: '/Employee/CreateEmployee',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(employeeData),
+                success: function (response) {
+                    getEmployees();
+                },
+                error: function (xhr, textStatus, error) {
+                    alert('Failed to add employee: ' + error);
+                }
+            });
+
+            // Hide the modal
+            $("#createModal").modal("hide");
+            getEmployees();
+        }
+
+        // Get all employees from database
+        function getEmployees() {
+            $.ajax({
+                url: '/Employee/GetEmployees',
+                type: 'GET',
+                dataType: 'json',
+                success: function (data) {
+                    var tableBody = $('#employee-table-body');
+                    // Clear any existing rows
+                    tableBody.empty();
+
+                    // Create table rows for each employee
+                    data.forEach(function (employee) {
+                        var row = $('<tr>');
+                        row.append($('<td>').text(employee.empId));
+                        row.append($('<td>').text(employee.names));
+                        row.append($('<td>').text(new Date(employee.dob).toLocaleDateString()));
+                        row.append($('<td>').text(employee.salary));
+                        row.append($('<td>').text(employee.yearOfExp));
+
+                        // Create action buttons
+                        var actions = $('<td>');
+                        var editButton = $('<button>').text('Edit');
+                        var deleteButton = $('<button>').text('Delete');
+
+                        // Attach employee ID to the buttons
+                        editButton.data('employee', employee);
+                        deleteButton.data('employee-id', employee.empId);
+
+                        // Add click event handlers to the buttons
+                        editButton.click(handleEditButtonClick);
+                        deleteButton.click(function () {
+                            handleDeleteButtonClick($(this).data('employee-id'));
+                        });
+
+                        actions.append(editButton);
+                        actions.append(deleteButton);
+
+                        row.append(actions);
+                        tableBody.append(row);
+                    });
+                },
+                error: function (xhr, textStatus, errorThrown) {
+                    console.log('Error:', errorThrown);
+                }
+            });
+        }
+
+        // Function when user clicks edit button
+        function handleEditButtonClick() {
+            var employee = $(this).data('employee');
+
+            // Prefill the form fields
+            $("#empId").val(employee.empId);
+            $("#names").val(employee.names);
+            $("#dob").val(employee.dob);
+            $("#salary").val(employee.salary);
+            $("#yearOfExp").val(employee.yearOfExp);
+
+            var dob = new Date(employee.dob);
+            var year = dob.getFullYear();
+            var month = (dob.getMonth() + 1).toString().padStart(2, "0");
+            var day = dob.getDate().toString().padStart(2, "0");
+
+            var formattedDate = year + "-" + month + "-" + day;
+
+            // Create the content for the modal
+            var modalContent = '<form id="employeeForm">' +
+                '<input type="hidden" id="empId" value="' + employee.empId + '" required disabled><br><br>' +
+                '<label for="names">Names:</label>' +
+                '<input type="text" id="names" value="' + employee.names + '" required><br><br>' +
+                '<label for="dob">Date of Birth:</label>' +
+                '<input type="date" id="dob" value="' + formattedDate + '" required min="1800-01-01"><br><br>' +
+                '<label for="salary">Salary:</label>' +
+                '<input type="number" id="salary" step="0.01" value="' + employee.salary + '" required><br><br>' +
+                '<label for="yearOfExp">Years of Experience:</label>' +
+                '<input type="number" id="yearOfExp" value="' + employee.yearOfExp + '" required><br><br>' +
+                '</form>';
+
+            // Display the modal
+            $("#editModal .modal-body").html(modalContent);
+            $("#editModal").modal("show");
+        }
+
+        // Event handler for delete button click
+        function handleDeleteButtonClick(employeeId) {
+            $.ajax({
+                url: '/Employee/DeleteEmployee',
+                type: 'DELETE',
+                contentType: 'application/json',
+                data: JSON.stringify(employeeId),
+                success: function (response) {
+                    getEmployees();
+                },
+                error: function (xhr, textStatus, error) {
+                    console.log('Error:', error);
+                }
+            });
+        }
+
+        // Modal all modal
+        function closeModal() {
+            $("#editModal").modal("hide");
+            $("#createModal").modal("hide");
+        }
+
+        // Modal for editing employee details
+        function submitModal() {
+            var empId = parseInt($("#empId").val());
+            var names = $("#names").val();
+            var dob = $("#dob").val();
+            var salary = parseFloat($("#salary").val());
+            var yearOfExp = parseInt($("#yearOfExp").val());
+
+            var employeeData = {
+                EmpId: empId,
+                Names: names,
+                DOB: dob,
+                Salary: salary,
+                YearOfExp: yearOfExp
+            };
+            $.ajax({
+                url: '/Employee/UpdateEmployee',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(employeeData),
+                success: function (response) {
+                    getEmployees();
+                },
+                error: function (xhr, textStatus, error) {
+                    // Handle error response
+                }
+            });
+
+            // Hide the modal
+            $("#editModal").modal("hide");
+        }
+    </script>
+</body>
+</html>
